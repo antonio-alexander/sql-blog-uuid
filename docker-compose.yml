@@ -14,7 +14,3 @@ services:
       MYSQL_DATABASE: mysql
       MYSQL_USER: mysql
       MYSQL_PASSWORD: mysql
-    volumes:
-      - ./sql/uuid_table.sql:/docker-entrypoint-initdb.d/uuid_table.sql
-      - ./sql/uuid_primary.sql:/docker-entrypoint-initdb.d/uuid_primary.sql
-      - ./sql/uuid_primary_optimized.sql:/docker-entrypoint-initdb.d/uuid_primary_optimized.sql

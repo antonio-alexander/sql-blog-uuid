@@ -2,23 +2,14 @@
 
 The overall goal of this repo is to show some different solutions for using uuids as identifiers for table rows. There are a variety of reason why you may want UUIDs over autonumbers or user supplied strings. Although there is a focus on UUIDs and primary keys, there's also some supporting information regarding [database normalization](https://en.wikipedia.org/wiki/Database_normalization) as well as some ideas for best practices.
 
-## Employee as a database object
+## Loading the sql statements
 
-The employee object has the following schema schema/type:
+Unfortunately the sql file contains trigggrs and setting/unsetting of the delimeter, so it fails if you attempt to load it in the docker-entrypoint-initdb.d. In this case, you can copy+pasta the sql file AFTER you login to the docker container:
 
-```json
-{
-    "id": "1e991081-656f-4715-a04b-2bd64417a87e",
-    "first_name": "Antonio",
-    "last_name": "Alexander",
-    "email_address": "antonio.alexander@mistersoftwaredeveloper.com",
-}
+```sh
+docker compose up -d
+docker exec -it mysql mysql -u root -p
 ```
-
-The high-level business rules for the employee object are:
-
-- All employees must have unique email addresses
-- All employees must be identified by unique ids
 
 ## UUIDs as primary keys
 
@@ -36,11 +27,11 @@ These links may be helpful in understanding these solution:
 - [https://dev.mysql.com/blog-archive/storing-uuid-values-in-mysql-tables/](https://dev.mysql.com/blog-archive/storing-uuid-values-in-mysql-tables/)
 - [https://www.mysqltutorial.org/mysql-uuid](https://www.mysqltutorial.org/mysql-uuid)
 
-In the context of bludgeon, these hypothetical primary keys/uuids, would be used as application level keys to interact with those objects or perform operations on those objects e.g., starting/stopping a timer etc.
+In the context of bludgeon (or any other application), these uuids would be used as application level keys to interact with those objects or perform operations on those objects e.g., starting/stopping a timer etc. UUIDs are better tools to anonymize keys while maintaining uniqueness and functionality.
 
 ## Separate uuid table
 
-This is the basic solution, I think everyone should "start" here, because it's easy to connect the dots and it makes total sense. In terms of ease of use and it's "set it and forget it attitude"; I think it's the better overall solution. The other solutions are neat, but overall provide the same solution.
+This is the basic solution, I think everyone should "start" here, because it's easy to connect the dots and it makes total sense. In terms of ease of use and it's "set it and forget it attitude"; I think it's the better overall solution. The other solutions are neat, but overall provide the same solution with more cons than pros.
 
 This solution involves two tables and a trigger, these are the use cases that this solution accomplishes:
 
@@ -149,9 +140,21 @@ MariaDB [employee_table]>    SELECT employee_uuid, employee_first_name, employee
 1 row in set (0.001 sec)
 ```
 
+Alternatively, you could create a view to allow people to depend on this table rather than the employee/employee_uuid table:
+
+```sql
+CREATE VIEW employee_v1 AS
+    SELECT
+        uuid, employee_first_name, employee_last_name, employee_email_address
+    FROM employee
+    JOIN employee_uuid ON id;
+```
+
+This can be used to both version/abstract employee from its underlying data type or provide additional functionality (e.g., this could be how you can handle forward compatible changes).
+
 In short, this works really well and gives you a lot of flexibility to prevent people who can write to the employee table from writing to the emploee_uuid table (while the trigger can). It's pretty straight forward, de-couples the uuid from employee id and for the most part, separates the more application centric uuid from the database centric employee id.
 
-## UUID as primary key in table
+## UUID as primary key in employee table
 
 This is an obvious optimization: why can't we just have one table? There's nothing preventing you from doing so, but in an attempt to not have ambiguous primary keys, you'd need to completely replace the primary auto number with a uuid. We can combine soem of the techniques we used earlier to accomplish the same "idea" using a single table and no trigger (if the version of mysql is recent enough):
 
@@ -201,7 +204,7 @@ MariaDB [employee_primary]> select * from employee;
 
 ## Optimized UUID as primary key in table
 
-This is the final optimization for the table which is really just for shits and giggles, maybe this matters with a giant table, like millions of roles. To accomplish this final optimization, we use binary for the uuid/id column rather than text. As you should know, UUIDs can be represented as text: 36 characters at a byte per character or as binary as sixteen bytes (a 50% difference in size).
+This is the final optimization for the table which is really just for shits and giggles, maybe this matters with a giant table, like millions of rows. To accomplish this final optimization, we use binary for the uuid/id column rather than text. As you should know, UUIDs can be represented as text: 36 characters at a byte per character or as binary as sixteen bytes (a 50% difference in size).
 
 ```sql
 CREATE TABLE IF NOT EXISTS employee (
@@ -261,3 +264,7 @@ MariaDB [employee_optimized]> select id_text, employee_first_name, employee_last
 +--------------------------------------+---------------------+--------------------+-----------------------------------------------+
 1 row in set (0.001 sec)
 ```
+
+## Security concerns
+
+Although security is outside the scope of this repo/blog, your 'final' architecture could be heavily influenced by the security model you decide to employ.  Generally, the multi-table solution makes it easier to apply security on a per table basis rather than a per column basis. A single table solution may make it more difficult to maintain data consistency and cover gaps with non-sensical queries/validation.

@@ -1,14 +1,15 @@
--- DROP DATABASE IF EXISTS employee_table;
-CREATE DATABASE IF NOT EXISTS employee_table;
+-- DROP DATABASE IF EXISTS sql_blog_uuid;
+CREATE DATABASE IF NOT EXISTS sql_blog_uuid;
 
-USE employee_table;
+USE sql_blog_uuid;
 
 -- DROP TABLE IF EXISTS employee
 CREATE TABLE IF NOT EXISTS employee (
-    id BIGINT PRIMARY KEY NOT NULL AUTO_INCREMENT,
+    id BIGINT NOT NULL AUTO_INCREMENT,
     employee_first_name TEXT,
     employee_last_name TEXT,
     employee_email_address TEXT NOT NULL,
+    PRIMARY KEY id,
     UNIQUE(employee_email_address)
 ) ENGINE = InnoDB;
 
@@ -20,22 +21,32 @@ CREATE TABLE IF NOT EXISTS employee (
 --  that don't belong to existing employees
 -- DROP TABLE IF EXISTS employee_uuid
 CREATE TABLE IF NOT EXISTS employee_uuid (
-    employee_uuid TEXT(36) NOT NULL DEFAULT (uuid()),
+    uuid TEXT(36) PRIMARY KEY NOT NULL DEFAULT (uuid()),
+    -- KIM: if you're not running at least MYSQL 8.0 you may not be able to have a default
+    -- REFERENCE: https://dev.mysql.com/doc/refman/8.0/en/data-type-defaults.html
+    -- uuid TEXT(36) PRIMARY KEY NOT NULL,
     employee_id BIGINT NOT NULL,
-    PRIMARY KEY (employee_id, employee_uuid(36)),
+    PRIMARY KEY (uuid(36)),
     FOREIGN KEY (employee_id) REFERENCES employee(id) ON DELETE CASCADE,
-    INDEX(employee_id, employee_uuid(36))
+    UNIQUE(uuid, employee_id)
 ) ENGINE = InnoDB;
 
 -- KIM: This trigger avoids having to generate the uuid manually and
 --  prevents data inconsistency where an employee could exist without
 --  a uuid
 -- DROP TRIGGER IF EXISTS employee_insert_uuid
--- DELIMITER $$
--- CREATE TRIGGER employee_insert_uuid
--- AFTER INSERT
---     ON employee FOR EACH ROW BEGIN
--- INSERT INTO employee_uuid(employee_id, employee_uuid)
---     VALUES(new.id, UUID());
--- END $$
--- DELIMITER ;
+DELIMITER $$
+CREATE TRIGGER employee_insert_uuid
+AFTER INSERT
+    ON employee FOR EACH ROW BEGIN
+INSERT INTO employee_uuid(employee_id, uuid)
+    VALUES(new.id, UUID());
+END $$
+DELIMITER ;
+
+-- DROP VIEW IF EXISTS employee_v1
+CREATE VIEW employee_v1 AS
+    SELECT
+        uuid, employee_first_name, employee_last_name, employee_email_address
+    FROM employee
+    JOIN employee_uuid ON id;
